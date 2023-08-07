@@ -160,6 +160,10 @@ function toggleLiveInput() {
 			window.cancelAnimationFrame = window.webkitCancelAnimationFrame;
         window.cancelAnimationFrame( rafID );
     }
+	else
+	{
+		resetMidi();
+	}
     getUserMedia(
     	{
             "audio": {
@@ -186,7 +190,10 @@ function togglePlayback() {
         window.cancelAnimationFrame( rafID );
         return "start";
     }
-
+	else
+	{
+		resetMidi();
+	}
     sourceNode = audioContext.createBufferSource();
     sourceNode.buffer = theBuffer;
     sourceNode.loop = true;
@@ -331,7 +338,7 @@ function autoCorrelate( buf, sampleRate ) {
 	b = (x3 - x1)/2;
 	if (a) T0 = T0 - b/(2*a);
 
-	return sampleRate/T0;
+	return {pitch:sampleRate/T0, rms: rms};
 }
 
 function updatePitch( time ) {
@@ -364,7 +371,7 @@ function updatePitch( time ) {
 		waveCanvas.stroke();
 	}
 
- 	if (ac == -1) {
+ 	if (ac.pitch == -1) {
  		detectorElem.className = "vague";
 	 	pitchElem.innerText = "--";
 		noteElem.innerText = "-";
@@ -374,7 +381,7 @@ function updatePitch( time ) {
 		updateMidiData(null);
  	} else {
 	 	detectorElem.className = "confident";
-	 	pitch = ac;
+	 	pitch = ac.pitch;
 	 	pitchElem.innerText = Math.round( pitch ) ;
 	 	var note =  noteFromPitch( pitch );
 		noteElem.innerHTML = noteStrings[note%12];
@@ -390,7 +397,7 @@ function updatePitch( time ) {
 			detuneAmount.innerHTML = Math.abs( detune );
 		}
 		
-		updateMidiData(note);
+		updateMidiData(note, ac.rms);
 	}
 
 	if (!window.requestAnimationFrame)
@@ -398,10 +405,18 @@ function updatePitch( time ) {
 	rafID = window.requestAnimationFrame( updatePitch );
 }
 
+let timeOffset = 0;
 let midiData = [];
 let lastNote = null;
 
-function updateMidiData(note)
+function resetMidi()
+{
+	timeOffset = now();
+	midiData = [];
+	lastNote = null;	
+}
+
+function updateMidiData(note, rms)
 {
 	let process = false;
 	if(!process && (note == null && lastNote != null))
@@ -409,26 +424,33 @@ function updateMidiData(note)
 		// last note off
 		if(midiData.length > 0)
 		{
-			midiData[midiData.length - 1].duration = now() - midiData[midiData.length - 1];
+			let start = midiData[midiData.length - 1].time;
+			midiData[midiData.length - 1].duration = now() - timeOffset - start;
 		}
+		process = true;
 	}
-	if(!process && (note != null && (lastNote != null || note != lastNote)))
+	if(!process && note != null)
 	{
 		// last note off
 		if(midiData.length > 0)
 		{
-			midiData[midiData.length - 1].duration = now() - midiData[midiData.length - 1];
+			let start = midiData[midiData.length - 1].time;
+			midiData[midiData.length - 1].duration = now() - timeOffset - start;
 		}
-		// new note on
-		let noteName = note+'#'+octaveFromNote(note);
-		let newData = {
-			name: noteName,
-			midi: note,
-			velocity: 1,
-			time:now(),
-			duration: 0.1
-		};
-		midiData.push(newData);
+		if(note != lastNote)
+		{
+			// new note on
+			let noteName = note(note, true);
+			let newData = {
+				name: noteName,
+				midi: note,
+				velocity: Math.round(rms * 100),
+				time:now()-timeOffset,
+				duration: 0.1
+			};
+			midiData.push(newData);
+		}
+		process = true;
 	}
 	
 	lastNote = note;
@@ -448,3 +470,47 @@ function now()
 	"duration": 0.3125
 } 
 */
+
+let tempo = 130;
+
+// in seconds
+let barDuration = 4/tempo;
+
+function saveMidi()
+{
+	const track = new MidiWriter.Track();
+	let evt = [];
+	for(let i = 0; i<midiData.length; i++)
+	{
+		evt.push(new MidiWriter.NoteEvent({pitch: [note(midiData[i].midi)], startTick: wait: midiData[i].time, midiData[i].duration}));
+	}
+
+	/*
+	track.addEvent([
+			new MidiWriter.NoteEvent({pitch: ['E4','D4'], duration: '4'}),
+			new MidiWriter.NoteEvent({pitch: ['C4'], duration: '2'}),
+			new MidiWriter.NoteEvent({pitch: ['E4','D4'], duration: '4'}),
+			new MidiWriter.NoteEvent({pitch: ['C4'], duration: '2'}),
+			new MidiWriter.NoteEvent({pitch: ['C4', 'C4', 'C4', 'C4', 'D4', 'D4', 'D4', 'D4'], duration: '8'}),
+			new MidiWriter.NoteEvent({pitch: ['E4','D4'], duration: '4'}),
+			new MidiWriter.NoteEvent({pitch: ['C4'], duration: '2'})
+		], function(event, index) {
+		return {sequential: true};
+	}
+	);
+	*/
+
+	const write = new MidiWriter.Writer(track);
+	console.log(write.dataUri());
+}
+
+var FLATS = "C Db D Eb E F Gb G Ab A Bb B".split(" ");
+var SHARPS = "C C# D D# E F F# G G# A A# B".split(" ");
+
+function note(num, sharps) {
+  num = Math.round(num);
+  var pcs = sharps === true ? SHARPS : FLATS;
+  var pc = pcs[num % 12];
+  var o = Math.floor(num / 12) - 1;
+  return pc + o;
+}
