@@ -223,6 +223,11 @@ function centsOffFromPitch( frequency, note ) {
 	return Math.floor( 1200 * Math.log( frequency / frequencyFromNoteNumber( note ))/Math.log(2) );
 }
 
+function octaveFromNote(note)
+{
+	return parseInt(note / 12) - 1;
+}
+
 // this is the previously used pitch detection algorithm.
 /*
 var MIN_SAMPLES = 0;  // will be initialized when AudioContext is created.
@@ -365,6 +370,8 @@ function updatePitch( time ) {
 		noteElem.innerText = "-";
 		detuneElem.className = "";
 		detuneAmount.innerText = "--";
+		
+		updateMidiData(null);
  	} else {
 	 	detectorElem.className = "confident";
 	 	pitch = ac;
@@ -382,9 +389,62 @@ function updatePitch( time ) {
 				detuneElem.className = "sharp";
 			detuneAmount.innerHTML = Math.abs( detune );
 		}
+		
+		updateMidiData(note);
 	}
 
 	if (!window.requestAnimationFrame)
 		window.requestAnimationFrame = window.webkitRequestAnimationFrame;
 	rafID = window.requestAnimationFrame( updatePitch );
 }
+
+let midiData = [];
+let lastNote = null;
+
+function updateMidiData(note)
+{
+	let process = false;
+	if(!process && (note == null && lastNote != null))
+	{
+		// last note off
+		if(midiData.length > 0)
+		{
+			midiData[midiData.length - 1].duration = now() - midiData[midiData.length - 1];
+		}
+	}
+	if(!process && (note != null && (lastNote != null || note != lastNote)))
+	{
+		// last note off
+		if(midiData.length > 0)
+		{
+			midiData[midiData.length - 1].duration = now() - midiData[midiData.length - 1];
+		}
+		// new note on
+		let noteName = note+'#'+octaveFromNote(note);
+		let newData = {
+			name: noteName,
+			midi: note,
+			velocity: 1,
+			time:now(),
+			duration: 0.1
+		};
+		midiData.push(newData);
+	}
+	
+	lastNote = note;
+}
+
+function now()
+{
+	return (new Date()).getTime() / 1000;
+}
+
+/*
+{
+	"name": "F4",
+	"midi": 65,
+	"time": 171.24999999999667,
+	"velocity": 0.4409448818897638,
+	"duration": 0.3125
+} 
+*/
