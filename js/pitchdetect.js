@@ -165,17 +165,17 @@ function toggleLiveInput() {
 		resetMidi();
 	}
     getUserMedia(
-    	{
-            "audio": {
-                "mandatory": {
-                    "googEchoCancellation": "false",
-                    "googAutoGainControl": "false",
-                    "googNoiseSuppression": "false",
-                    "googHighpassFilter": "false"
-                },
-                "optional": []
-            },
-        }, gotStream);
+	{
+		"audio": {
+			"mandatory": {
+				"googEchoCancellation": "false",
+				"googAutoGainControl": "false",
+				"googNoiseSuppression": "false",
+				"googHighpassFilter": "false"
+			},
+			"optional": []
+		},
+	}, gotStream);
 }
 
 function togglePlayback() {
@@ -301,10 +301,15 @@ function autoCorrelate( buf, sampleRate ) {
 	var SIZE = buf.length;
 	var rms = 0;
 
+	var velocity = 0;
+	var vel = 0;
 	for (var i=0;i<SIZE;i++) {
 		var val = buf[i];
 		rms += val*val;
+		
+		vel += Math.abs(val);
 	}
+	velocity = vel / SIZE;
 	rms = Math.sqrt(rms/SIZE);
 	if (rms<0.01) // not enough signal
 		return -1;
@@ -338,7 +343,7 @@ function autoCorrelate( buf, sampleRate ) {
 	b = (x3 - x1)/2;
 	if (a) T0 = T0 - b/(2*a);
 
-	return {pitch:sampleRate/T0, rms: rms};
+	return {pitch:sampleRate/T0, rms: rms, velocity:velocity};
 }
 
 function updatePitch( time ) {
@@ -378,26 +383,30 @@ function updatePitch( time ) {
 		detuneElem.className = "";
 		detuneAmount.innerText = "--";
 		
-		updateMidiData(null);
+		updateMidiData(null, null);
  	} else {
 	 	detectorElem.className = "confident";
 	 	pitch = ac.pitch;
 	 	pitchElem.innerText = Math.round( pitch ) ;
 	 	var note =  noteFromPitch( pitch );
-		noteElem.innerHTML = noteStrings[note%12];
-		var detune = centsOffFromPitch( pitch, note );
-		if (detune == 0 ) {
-			detuneElem.className = "";
-			detuneAmount.innerHTML = "--";
-		} else {
-			if (detune < 0)
-				detuneElem.className = "flat";
-			else
-				detuneElem.className = "sharp";
-			detuneAmount.innerHTML = Math.abs( detune );
-		}
 		
-		updateMidiData(note, ac.rms);
+		if(!isNaN(note))
+		{
+			noteElem.innerHTML = noteStrings[note%12];
+			var detune = centsOffFromPitch( pitch, note );
+			if (detune == 0 ) {
+				detuneElem.className = "";
+				detuneAmount.innerHTML = "--";
+			} else {
+				if (detune < 0)
+					detuneElem.className = "flat";
+				else
+					detuneElem.className = "sharp";
+				detuneAmount.innerHTML = Math.abs( detune );
+			}
+			
+			updateMidiData(note, ac.rms, ac.velocity);
+		}
 	}
 
 	if (!window.requestAnimationFrame)
@@ -405,112 +414,4 @@ function updatePitch( time ) {
 	rafID = window.requestAnimationFrame( updatePitch );
 }
 
-let timeOffset = 0;
-let midiData = [];
-let lastNote = null;
 
-function resetMidi()
-{
-	timeOffset = now();
-	midiData = [];
-	lastNote = null;	
-}
-
-function updateMidiData(note, rms)
-{
-	let process = false;
-	if(!process && (note == null && lastNote != null))
-	{
-		// last note off
-		if(midiData.length > 0)
-		{
-			let start = midiData[midiData.length - 1].time;
-			midiData[midiData.length - 1].duration = now() - timeOffset - start;
-		}
-		process = true;
-	}
-	if(!process && note != null)
-	{
-		// last note off
-		if(midiData.length > 0)
-		{
-			let start = midiData[midiData.length - 1].time;
-			midiData[midiData.length - 1].duration = now() - timeOffset - start;
-		}
-		if(note != lastNote)
-		{
-			// new note on
-			let noteName = note(note, true);
-			let newData = {
-				name: noteName,
-				midi: note,
-				velocity: Math.round(rms * 100),
-				time:now()-timeOffset,
-				duration: 0.1
-			};
-			midiData.push(newData);
-		}
-		process = true;
-	}
-	
-	lastNote = note;
-}
-
-function now()
-{
-	return (new Date()).getTime() / 1000;
-}
-
-/*
-{
-	"name": "F4",
-	"midi": 65,
-	"time": 171.24999999999667,
-	"velocity": 0.4409448818897638,
-	"duration": 0.3125
-} 
-*/
-
-let tempo = 130;
-
-// in seconds
-let barDuration = 4/tempo;
-
-function saveMidi()
-{
-	const track = new MidiWriter.Track();
-	let evt = [];
-	for(let i = 0; i<midiData.length; i++)
-	{
-		evt.push(new MidiWriter.NoteEvent({pitch: [note(midiData[i].midi)], startTick: wait: midiData[i].time, midiData[i].duration}));
-	}
-
-	/*
-	track.addEvent([
-			new MidiWriter.NoteEvent({pitch: ['E4','D4'], duration: '4'}),
-			new MidiWriter.NoteEvent({pitch: ['C4'], duration: '2'}),
-			new MidiWriter.NoteEvent({pitch: ['E4','D4'], duration: '4'}),
-			new MidiWriter.NoteEvent({pitch: ['C4'], duration: '2'}),
-			new MidiWriter.NoteEvent({pitch: ['C4', 'C4', 'C4', 'C4', 'D4', 'D4', 'D4', 'D4'], duration: '8'}),
-			new MidiWriter.NoteEvent({pitch: ['E4','D4'], duration: '4'}),
-			new MidiWriter.NoteEvent({pitch: ['C4'], duration: '2'})
-		], function(event, index) {
-		return {sequential: true};
-	}
-	);
-	*/
-
-	const write = new MidiWriter.Writer(track);
-	console.log(write.dataUri());
-}
-
-var FLATS = "C Db D Eb E F Gb G Ab A Bb B".split(" ");
-var SHARPS = "C C# D D# E F F# G G# A A# B".split(" ");
-
-function note(num, sharps) {
-  num = Math.round(num);
-  var pcs = sharps === true ? SHARPS : FLATS;
-  var pc = pcs[num % 12];
-  var o = Math.floor(num / 12) - 1;
-  return pc + o;
-}
