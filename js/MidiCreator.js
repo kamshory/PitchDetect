@@ -90,10 +90,10 @@ class MidiCreator {
                 time1 = this.midiTime(this.midiData[i].time);
                 time2 = this.midiTime(this.midiData[i].time + this.midiData[i].duration);
 
-                // note On
+                // send event note On at time1
                 track1.add(time1, JZZ.MIDI.noteOn(0, this.midiData[i].name, this.midiData[i].velocity));
 
-                // note Off
+                // send event note Off at time1
                 track1.add(time2, JZZ.MIDI.noteOff(0, this.midiData[i].name));
 
             }
