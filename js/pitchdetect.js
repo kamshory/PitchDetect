@@ -28,20 +28,20 @@ SOFTWARE.
 
 window.AudioContext = window.AudioContext || window.webkitAudioContext;
 
-var audioContext = null;
-var isPlaying = false;
-var sourceNode = null;
-var analyser = null;
-var theBuffer = null;
-var DEBUGCANVAS = null;
-var mediaStreamSource = null;
-var detectorElem,
-  canvasElem,
-  waveCanvas,
-  pitchElem,
-  noteElem,
-  detuneElem,
-  detuneAmount;
+let audioContext = null;
+let isPlaying = false;
+let sourceNode = null;
+let analyser = null;
+let theBuffer = null;
+let DEBUGCANVAS = null;
+let mediaStreamSource = null;
+let detectorElem;
+let canvasElem;
+let waveCanvas;
+let pitchElem;
+let noteElem;
+let detuneElem;
+let detuneAmount;
   
 
 window.onload = function () {
@@ -74,7 +74,7 @@ window.onload = function () {
     e.preventDefault();
     theBuffer = null;
 
-    var reader = new FileReader();
+    let reader = new FileReader();
     reader.onload = function (event) {
       audioContext.decodeAudioData(
         event.target.result,
@@ -225,12 +225,12 @@ function togglePlayback() {
   return "stop";
 }
 
-var rafID = null;
-var tracks = null;
-var buflen = 2048;
-var buf = new Float32Array(buflen);
+let rafID = null;
+let tracks = null;
+let buflen = 2048;
+let buf = new Float32Array(buflen);
 
-var noteStrings = [
+let noteStrings = [
   "C",
   "C#",
   "D",
@@ -246,7 +246,7 @@ var noteStrings = [
 ];
 
 function noteFromPitch(frequency) {
-  var noteNum = 12 * (Math.log(frequency / 440) / Math.log(2));
+  let noteNum = 12 * (Math.log(frequency / 440) / Math.log(2));
   return Math.round(noteNum) + 69;
 }
 
@@ -266,67 +266,73 @@ function octaveFromNote(note) {
 
 function autoCorrelate(buf, sampleRate) {
   // Implements the ACF2+ algorithm
-  var SIZE = buf.length;
-  var rms = 0;
+  let bufSize = buf.length;
+  let rms = 0;
 
-  var velocity = 0;
-  var vel = 0;
-  for (var i = 0; i < SIZE; i++) {
-    var val = buf[i];
+  let velocity = 0;
+  let vel = 0;
+  for (let i = 0; i < bufSize; i++) {
+    let val = buf[i];
     rms += val * val;
-
     vel += Math.abs(val);
   }
-  velocity = vel / SIZE;
-  rms = Math.sqrt(rms / SIZE);
+  velocity = vel / bufSize;
+  rms = Math.sqrt(rms / bufSize);
   if (rms < 0.01)
+  {
     // not enough signal
     return -1;
+  }
 
-  var r1 = 0,
-    r2 = SIZE - 1,
-    thres = 0.2;
-  for (var i = 0; i < SIZE / 2; i++) {
+  let r1 = 0;
+  let r2 = bufSize - 1;
+  let thres = 0.2;
+  for (let i = 0; i < bufSize / 2; i++) {
     if (Math.abs(buf[i]) < thres) {
       r1 = i;
       break;
     }
   }
-  for (var i = 1; i < SIZE / 2; i++) {
-    if (Math.abs(buf[SIZE - i]) < thres) {
-      r2 = SIZE - i;
+  for (let i = 1; i < bufSize / 2; i++) {
+    if (Math.abs(buf[bufSize - i]) < thres) {
+      r2 = bufSize - i;
       break;
     }
   }
 
   buf = buf.slice(r1, r2);
-  SIZE = buf.length;
+  bufSize = buf.length;
 
-  var c = new Array(SIZE).fill(0);
-  for (var i = 0; i < SIZE; i++) {
-    for (var j = 0; j < SIZE - i; j++) {
+  let c = new Array(bufSize).fill(0);
+  for (let i = 0; i < bufSize; i++) {
+    for (let j = 0; j < bufSize - i; j++) {
       c[i] = c[i] + buf[j] * buf[j + i];
     }
   }
 
-  var d = 0;
-  while (c[d] > c[d + 1]) d++;
-  var maxval = -1,
-    maxpos = -1;
-  for (var i = d; i < SIZE; i++) {
+  let d = 0;
+  while (c[d] > c[d + 1]) 
+  {
+    d++;
+  }
+  let maxval = -1;
+  let maxpos = -1;
+  for (let i = d; i < bufSize; i++) {
     if (c[i] > maxval) {
       maxval = c[i];
       maxpos = i;
     }
   }
-  var T0 = maxpos;
-
-  var x1 = c[T0 - 1],
-    x2 = c[T0],
-    x3 = c[T0 + 1];
+  let T0 = maxpos;
+  let x1 = c[T0 - 1];
+  let x2 = c[T0];
+  let x3 = c[T0 + 1];
   a = (x1 + x3 - 2 * x2) / 2;
   b = (x3 - x1) / 2;
-  if (a) T0 = T0 - b / (2 * a);
+  if (a) 
+  {
+    T0 = T0 - b / (2 * a);
+  }
 
   return { pitch: sampleRate / T0, rms: rms, velocity: velocity };
 }
@@ -334,9 +340,9 @@ function autoCorrelate(buf, sampleRate) {
 
 
 function updatePitch(time) {
-  var cycles = new Array();
+  let cycles = new Array();
   analyser.getFloatTimeDomainData(buf);
-  var ac = autoCorrelate(buf, audioContext.sampleRate);
+  let ac = autoCorrelate(buf, audioContext.sampleRate);
   // TODO: Paint confidence meter on canvasElem here.
 
   if (DEBUGCANVAS) {
@@ -358,7 +364,7 @@ function updatePitch(time) {
     waveCanvas.strokeStyle = "black";
     waveCanvas.beginPath();
     waveCanvas.moveTo(0, buf[0]);
-    for (var i = 1; i < 512; i++) {
+    for (let i = 1; i < 512; i++) {
       waveCanvas.lineTo(i, 128 + buf[i] * 128);
     }
     waveCanvas.stroke();
@@ -376,11 +382,11 @@ function updatePitch(time) {
     detectorElem.className = "confident";
     pitch = ac.pitch;
     pitchElem.innerText = Math.round(pitch);
-    var note = noteFromPitch(pitch);
+    let note = noteFromPitch(pitch);
 
     if (!isNaN(note)) {
       noteElem.innerHTML = noteStrings[note % 12];
-      var detune = centsOffFromPitch(pitch, note);
+      let detune = centsOffFromPitch(pitch, note);
       if (detune == 0) {
         detuneElem.className = "";
         detuneAmount.innerHTML = "--";
