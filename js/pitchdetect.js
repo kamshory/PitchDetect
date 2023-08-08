@@ -1,3 +1,7 @@
+let midiCreator = new MidiCreator({
+  tempo:130
+});
+
 /*
 The MIT License (MIT)
 
@@ -38,6 +42,7 @@ var detectorElem,
   noteElem,
   detuneElem,
   detuneAmount;
+  
 
 window.onload = function () {
   audioContext = new AudioContext();
@@ -172,7 +177,7 @@ function toggleLiveInput() {
       window.cancelAnimationFrame = window.webkitCancelAnimationFrame;
     window.cancelAnimationFrame(rafID);
   } else {
-    resetMidi();
+    midiCreator.tempoMidi();
   }
   getUserMedia(
     {
@@ -202,7 +207,7 @@ function togglePlayback() {
     window.cancelAnimationFrame(rafID);
     return "start";
   } else {
-    resetMidi();
+    midiCreator.resetMidi();
   }
   sourceNode = audioContext.createBufferSource();
   sourceNode.buffer = theBuffer;
@@ -326,6 +331,8 @@ function autoCorrelate(buf, sampleRate) {
   return { pitch: sampleRate / T0, rms: rms, velocity: velocity };
 }
 
+
+
 function updatePitch(time) {
   var cycles = new Array();
   analyser.getFloatTimeDomainData(buf);
@@ -364,7 +371,7 @@ function updatePitch(time) {
     detuneElem.className = "";
     detuneAmount.innerText = "--";
 
-    updateMidiData(null, null);
+    midiCreator.add(null, null);
   } else {
     detectorElem.className = "confident";
     pitch = ac.pitch;
@@ -386,7 +393,7 @@ function updatePitch(time) {
         detuneAmount.innerHTML = Math.abs(detune);
       }
 
-      updateMidiData(note, ac.rms, ac.velocity);
+      midiCreator.add(note, ac.velocity);
     }
   }
 
