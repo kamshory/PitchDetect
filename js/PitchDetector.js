@@ -75,5 +75,79 @@ class PitchDetector {
 
             return { pitch: sampleRate / T0, rms: rms, velocity: velocity };
         };
+        
+        
+        this.loadAudioFile = function (path, callback) {
+            let audioContext = new AudioContext({
+                sampleRate: this.sampleRate
+            });
+            let ajaxRequest = new XMLHttpRequest();
+            ajaxRequest.open("GET", path, true);
+            ajaxRequest.responseType = "arraybuffer";
+            
+            let float32Array = null;
+
+            ajaxRequest.onload = () => {
+                audioContext.decodeAudioData(ajaxRequest.response).then((decodedData) => {
+                    float32Array = decodedData.getChannelData(0);
+                    _this.waveformArray = float32Array;
+                }).catch((err) => {
+                    // handle exception here
+                });
+                if(typeof callback == 'function')
+                {
+                    callback(float32Array);
+                }
+            };
+            ajaxRequest.send();
+        };
+        
+        this.chunkSize = function(tempo)
+        {     
+            /*
+            sample per second = 32000
+            chunkSize = sampleRate * 60 / (tempo*resolution)
+            */
+           return this.sampleRate * 240 / (tempo * this.resolution);
+        }
+        
+        this.process = function(tempo, maxTempo)
+        {
+            maxTempo = maxTempo || 720;
+            let mc = new MidiCreator({tempo:tempo, maxTempo:maxTempo});
+            let bSize = this.waveformArray.length;
+            let max = bSize - 1;
+            let cSize = this.chunkSize();
+            let start = 0;
+            let end = 0;
+            do{
+                end = start + cSize;
+                if(end > max)
+                {
+                    end = max;
+                }
+                let buf = this.waveformArray(start, end);
+                
+                let ac = this.autoCorrelate(buf, this.sampleRate);
+                
+                //pitch
+                //rms
+                //velocity
+                
+                mc.add(ac.pitch, ac.velocity);
+                
+                start = end;
+            } while(end < max);
+            
+            return mc;
+           
+        }
+        this.resolution = 32;
+        this.sampleRate = 32000;
+        this.waveformArray = null;
+        
+        let _this = this;
+
+
     }
 }
