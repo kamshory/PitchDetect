@@ -7,6 +7,7 @@ class MidiCreator {
         this.lastTime = 0;
         this.tempo = conf.tempo || 130;
         this.barSeg = 96;
+        this.maxTempo = 720;
 
         // in seconds
         this.barDuration = 60 / (this.tempo * this.barSeg);
@@ -21,14 +22,14 @@ class MidiCreator {
         };
         this.add = function (note, velocity) {
             let currentTime = this.now();
-            if (currentTime - this.lastTime < 60 / 720) {
+            if (currentTime - this.lastTime < 60 / this.maxTempo) {
                 return;
             }
             velocity = velocity * 200;
 
             this.lastTime = currentTime;
             let process = false;
-            if (!process && (note == null && this.lastNote != null)) {
+            if (!process && note == null && this.lastNote != null && !isNaN(this.lastNote)) {
                 // last note off
                 if (this.midiData.length > 0) {
                     let start = this.midiData[this.midiData.length - 1].time;
