@@ -41,7 +41,7 @@ function updateMidiData(note, rms, velocity)
 		if(note != lastNote)
 		{
 			// new note on
-			let noteName = noteFromNumber(note, true);
+			let noteName = noteFromNumber(note, false);
 			let newData = {
 				name: noteName,
 				midi: note,
@@ -59,13 +59,15 @@ function updateMidiData(note, rms, velocity)
 
 function now()
 {
-	return (new Date()).getTime() / 1000;
+	return (new Date()).getTime();
 }
 
 let tempo = 130;
 
+let barSeg = 96;
+
 // in seconds
-let barDuration = 240/tempo;
+let barDuration = 60/(tempo*barSeg);
 
 function fixDuration(dur)
 {
@@ -98,6 +100,44 @@ function fixDuration(dur)
 
 function saveMidi()
 {
+	var smf = new JZZ.MIDI.SMF(0, barSeg);
+	let track1 = new JZZ.MIDI.SMF.MTrk();
+
+	track1.add(0, JZZ.MIDI.smfBPM(tempo)) 
+	
+	let evt = [];
+	let time1 = 0;
+	let time2 = 0;
+	for(let i = 0; i<midiData.length; i++)
+	{
+        let dur = parseInt(barDuration/midiData[i].duration);
+		
+		time1 = Math.round(midiData[i].time / barDuration) / 1000;
+		time2 = Math.round((midiData[i].time + midiData[i].duration) / barDuration) / 1000;
+		
+		// note On
+		track1.add(time1, JZZ.MIDI.noteOn(0, midiData[i].name, midiData[i].velocity));
+
+		// note Off
+		track1.add(time2, JZZ.MIDI.noteOff(0, midiData[i].name));
+		
+	}
+	
+	track1.add(time2, JZZ.MIDI.smfEndOfTrack());	
+
+	smf.push(track1);
+
+	var str = smf.dump(); // MIDI file dumped as a string
+	var b64 = JZZ.lib.toBase64(str); // convert to base-64 string
+	var uri = 'data:audio/midi;base64,' + b64; // data URI
+
+	// Finally, write it to the document as a link and as an embedded object:
+	document.getElementById('out').innerHTML = 'New file: <a download=lame.mid href=' + uri + '>DOWNLOAD</a> <embed src=' + uri + ' autostart=false>';
+
+}
+
+function saveMidi2()
+{
 	const track = new MidiWriter.Track();
 	track.setTempo(tempo, 0);
 	let evt = [];
@@ -105,13 +145,11 @@ function saveMidi()
 	{
         let dur = parseInt(barDuration/midiData[i].duration);
         dur = fixDuration(dur);
-        
-        console.log(dur);
 		evt.push(new MidiWriter.NoteEvent({
             channel:4, 
             pitch: [noteFromNumber(midiData[i].midi)], 
             velocity:midiData[i].velocity, 
-            startTick:midiData[i].time*1000, 
+            startTick:midiData[i].time, 
             duration:dur
         }));
 	}
@@ -125,12 +163,12 @@ function saveMidi()
 	window.open(write.dataUri());
 }
 
-var FLATS = "C Db D Eb E F Gb G Ab A Bb B".split(" ");
-var SHARPS = "C C# D D# E F F# G G# A A# B".split(" ");
+var noteFlats = "C Db D Eb E F Gb G Ab A Bb B".split(" ");
+var noteSharps = "C C# D D# E F F# G G# A A# B".split(" ");
 
 function noteFromNumber(num, sharps) {
     num = Math.round(num);
-    var pcs = sharps === true ? SHARPS : FLATS;
+    var pcs = sharps === true ? noteSharps : noteFlats;
     var pc = pcs[num % 12];
     var o = Math.floor(num / 12) - 1;
     return pc + o;

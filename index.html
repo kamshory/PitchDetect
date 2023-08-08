@@ -21,7 +21,10 @@
 	</head>
 	<body>
 		<script src="js/pitchdetect.js"></script>
-		<script src="js/midi-writer.js"></script>
+		
+		<script src="js/JZZ.js"></script>
+		<script src="js/JZZ.midi.SMF.js"></script>
+		
 		<script src="js/midi.js"></script>
 		
 		<p><button onclick="startPitchDetect();">Start</button></p>
@@ -38,6 +41,8 @@
 			<canvas id="output" width=300 height=42></canvas>
 			<div id="detune"><span id="detune_amt">--</span><span id="flat">cents &#9837;</span><span id="sharp">cents &#9839;</span></div>
 		</div>
+		
+		<div id="out"></div>
 
 		<!-- just used for debugging
 		<canvas id="waveform" width="512" height="256"></canvas>
