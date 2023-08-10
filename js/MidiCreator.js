@@ -1,39 +1,79 @@
 class MidiCreator {
     constructor(conf) {
         conf = conf || {};
+        /**
+         * Tempo or beat per minute
+         */
+        this.tempo = conf.tempo || 130;
+        
+        /**
+         * Pulses per quarter note
+         */
+        this.ppqn = conf.ppqn || 96;
+        /**
+         * Maximum tempo (for realtime converting only)
+         */
+        this.maxTempo = conf.maxTempo || 720;
+        
+        /**
+         * Channel number to used
+         */
+        this.channel = conf.channel || 0;
+        
+        /**
+         * Minimum frequency to be process
+         */       
+        this.pitchMin = conf.pitchMin || 20;
+        
+        /**
+         * Maximum frequency to be process
+         */
+        this.pitchMax = conf.pitchMax || 20000;
+        
+        /**
+         * Threshold RMS
+         */
+        this.thresholdRms = conf.thresholdRms || 0.01;
+        
+        /**
+         * Threshold amplitude
+         */
+        this.thresholdAmplitude = conf.thresholdAmplitude || 0.2;
+        
+        /**
+         * Resolution
+         */          
+        this.resolution = conf.resolution || 32;
+        
+        /**
+         * Sample rate
+         */
+        this.sampleRate = conf.sampleRate || 32000;
+        
+        this.barDuration = 60 / (this.tempo * this.ppqn);
         this.timeOffset = 0;
         this.midiData = [];
         this.lastNote = null;
         this.lastTime = 0;
-        this.tempo = conf.tempo || 130;
-        this.barSeg = 96;
-        this.maxTempo = 720;
-        this.channel = conf.channel || 0;
-        
-        this.pitchMin = conf.pitchMin || 20;
-        this.pitchMax = conf.pitchMax || 20000;
-
-
-        // in seconds
-        this.barDuration = 60 / (this.tempo * this.barSeg);
-
-        this.noteFlats = "C Db D Eb E F Gb G Ab A Bb B".split(" ");
+        this.waveformArray = null;
+        this.noteFlats  = "C Db D Eb E F Gb G Ab A Bb B".split(" ");
         this.noteSharps = "C C# D D# E F F# G G# A A# B".split(" ");
         
-        
-        
-        this.thresholdRms = conf.thresholdRms || 0.01;
-        this.thresholdAmplitude = conf.thresholdAmplitude || 0.2;  
-        
-        this.resolution = 32;
-        this.sampleRate = 32000;
-        this.waveformArray = null;
-        
+        /**
+         * Get note from pitch
+         * @param {number} frequency 
+         * @returns Midi note code
+         */
         this.noteFromPitch = function(frequency) {
             let noteNum = 12 * (Math.log(frequency / 440) / Math.log(2));
             return Math.round(noteNum) + 69;
         }
         
+        /**
+         * Get frequency from MIDI note number
+         * @param {number} note 
+         * @returns Frequency in Hertz
+         */
         this.frequencyFromNoteNumber = function(note) {
             return 440 * Math.pow(2, (note - 69) / 12);
         }
@@ -44,7 +84,7 @@ class MidiCreator {
             );
         }
         
-        this.noteToPitch = function(note)
+        this.pitchFromNote = function(note)
         {
             let arr = [];
             if(note.indexOf('#') != -1)
@@ -56,12 +96,17 @@ class MidiCreator {
                 arr = this.noteFlats;
             }
             let noteName = note.replace(/[0-9]/g, '');
-            let octaveValue = str.replace(/[^0-9]/g, '');
+            let octaveValue = parseInt(note.replace(/[^0-9]/g, ''));
             let index = arr.indexOf(noteName);
-            return this.indexToPitch(index, octaveValue);
+            console.log('Note ', noteName, 'Octave ', octaveValue, 'Index ', index);
+            if(index == -1)
+            {
+                throw new Error('Invalid note name');
+            }
+            return this.pitchFromIndexAndOctave(index, octaveValue);
         }
         
-        this.indexToPitch = function (index, octaveValue)
+        this.pitchFromIndexAndOctave = function (index, octaveValue)
         {
             return 440 * Math.pow(Math.pow(2, 1/12), (octaveValue * 12) + index - 57);
         }
@@ -75,7 +120,8 @@ class MidiCreator {
             this.midiData = [];
             this.lastNote = null;
         };
-        this.add = function (pitch, velocity, currentTime) {
+        
+        this.addNote = function (pitch, velocity, currentTime) {
             if(pitch < this.pitchMin || pitch > this.pitchMax)
             {
                 return;
@@ -140,7 +186,7 @@ class MidiCreator {
          * Create MIDI
          */
         this.createMidi = function () {
-            let smf = new JZZ.MIDI.SMF(0, this.barSeg);
+            let smf = new JZZ.MIDI.SMF(0, this.ppqn);
             let track1 = new JZZ.MIDI.SMF.MTrk();
             
             track1.add(0, JZZ.MIDI.smfBPM(this.tempo));
@@ -197,7 +243,7 @@ class MidiCreator {
 
             let r1 = 0;
             let r2 = bufSize - 1;
- 
+
             for (let i = 0; i < bufSize / 2; i++) {
                 if (Math.abs(buf[i]) < this.thresholdAmplitude) {
                     r1 = i;
@@ -309,7 +355,7 @@ class MidiCreator {
                 if(typeof ac.pitch != 'undefined')
                 {
                     let currentTime = this.getCurrentTime(start);
-                    this.add(ac.pitch, ac.velocity, currentTime);
+                    this.addNote(ac.pitch, ac.velocity, currentTime);
                 }
                 
                 start = end;
