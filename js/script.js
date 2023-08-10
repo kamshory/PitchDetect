@@ -4,6 +4,6 @@ function soundToMidi(path)
     midiCreator.loadAudioFile(path, function(float32Array){
         midiCreator.soundToNote();
         midiData = midiCreator.createMidi();
-        window.open('data:audio/midi;base64,'+midiData);
+        //window.open('data:audio/midi;base64,'+midiData);
     });
 }

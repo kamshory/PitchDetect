@@ -9,12 +9,18 @@ class MidiCreator {
         this.barSeg = 96;
         this.maxTempo = 720;
         this.channel = conf.channel || 0;
+        
+        this.pitchMin = conf.pitchMin || 20;
+        this.pitchMax = conf.pitchMax || 20000;
+
 
         // in seconds
         this.barDuration = 60 / (this.tempo * this.barSeg);
 
         this.noteFlats = "C Db D Eb E F Gb G Ab A Bb B".split(" ");
         this.noteSharps = "C C# D D# E F F# G G# A A# B".split(" ");
+        
+        
         
         this.thresholdRms = conf.thresholdRms || 0.01;
         this.thresholdAmplitude = conf.thresholdAmplitude || 0.2;  
@@ -23,8 +29,8 @@ class MidiCreator {
         this.sampleRate = 32000;
         this.waveformArray = null;
         
-    this.noteFromPitch = function(frequency) {
-        let noteNum = 12 * (Math.log(frequency / 440) / Math.log(2));
+        this.noteFromPitch = function(frequency) {
+            let noteNum = 12 * (Math.log(frequency / 440) / Math.log(2));
             return Math.round(noteNum) + 69;
         }
         
@@ -38,6 +44,28 @@ class MidiCreator {
             );
         }
         
+        this.noteToPitch = function(note)
+        {
+            let arr = [];
+            if(note.indexOf('#') != -1)
+            {
+                arr = this.noteSharps;
+            }
+            else
+            {
+                arr = this.noteFlats;
+            }
+            let noteName = note.replace(/[0-9]/g, '');
+            let octaveValue = str.replace(/[^0-9]/g, '');
+            let index = arr.indexOf(noteName);
+            return this.indexToPitch(index, octaveValue);
+        }
+        
+        this.indexToPitch = function (index, octaveValue)
+        {
+            return 440 * Math.pow(Math.pow(2, 1/12), (octaveValue * 12) + index - 57);
+        }
+        
         this.octaveFromNote = function(note) {
             return parseInt(note / 12) - 1;
         }
@@ -48,13 +76,17 @@ class MidiCreator {
             this.lastNote = null;
         };
         this.add = function (pitch, velocity, currentTime) {
+            if(pitch < this.pitchMin || pitch > this.pitchMax)
+            {
+                return;
+            }
             let note = this.noteFromPitch(pitch);
+
             velocity = 30 + (200 * velocity);
             if(velocity > 127)
             {
                 velocity = 127;
             }
-            console.log(velocity)
             currentTime = currentTime || this.now();
             this.lastTime = currentTime;
             let process = false;
@@ -273,13 +305,10 @@ class MidiCreator {
                 let buf = this.waveformArray.slice(start, end);
                 
                 let ac = this.autoCorrelate(buf, this.sampleRate);
-                let currentTime = this.getCurrentTime(start);
                 
-                //pitch
-                //rms
-                //velocity
                 if(typeof ac.pitch != 'undefined')
                 {
+                    let currentTime = this.getCurrentTime(start);
                     this.add(ac.pitch, ac.velocity, currentTime);
                 }
                 
